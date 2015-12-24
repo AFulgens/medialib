@@ -1,0 +1,6 @@
+# Ignore temporary files
+**/*.tmp
+**/*.*~
+
+# Ignore log files
+**/*.*log*
