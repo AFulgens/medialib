@@ -7,7 +7,10 @@ import os
 import argparse
 import re
 
-import mutagen
+from mutagen.easyid3 import EasyID3
+from mutagen.flac import FLAC
+from mutagen.mp3 import MP3
+# print EasyID3.valid_keys.keys()
 
 # unicode magic
 sys.stdout = codecs.getwriter(locale.getpreferredencoding())(sys.stdout)
@@ -94,6 +97,13 @@ msg = {
   'w_file_name':u'W Incorrect song name ',
   'w_file_ends_dot':u'A Song name ends with "."',
   'w_file_spacing':u'W Incorrect spacing for file ',
+
+  'delete':u'Deleting ID3 tags recursively in directory',
+  'delete_dir':u'\tDeleting ID3 tags in directory',
+  'delete_file':u'\t\tDeleting ID3 tags in file',
+  'update':u'Updating ID3 tags recursively in directory',
+  'update_dir':u'\tUpdating ID3 tags in directory',
+  'update_file':u'\t\tUpdating ID3 tags in file',
 }
 
 ### FUNCTIONS ###
@@ -123,6 +133,108 @@ def check_naming(directory):
                     print result
                 else:
                     print msg['ok']
+
+
+def delete_id3(directory):
+    udir = unicode(directory, 'utf-8')
+    print msg['delete'], udir
+    for subdir, dirs, files in os.walk(udir):
+        if subdir != directory:
+            if subdir.find('Multimedia') is not -1: # skipping Multimedia dirs
+                continue
+            print msg['delete_dir'], subdir
+            for f in files:
+                print msg['delete_file'], f
+                extension = f.split(delim['ext'])[-1]
+                if extension == 'mp3':
+                    id3 = MP3(os.path.join(subdir, f))
+                    id3.delete()
+                    id3.save()
+                elif extension == 'flac':
+                    id3 = FLAC(os.path.join(subdir, f))
+                    id3.delete()
+                    id3.save()
+
+
+def update_id3(directory):
+    #TODO: Genre is omitted
+    udir = unicode(directory, 'utf-8')
+    print msg['update'], udir
+    for subdir, dirs, files in os.walk(udir):
+        if subdir != directory:
+            if subdir.find('Multimedia') is not -1: # skipping Multimedia dirs
+                continue
+            print msg['update_dir'], subdir
+            if not dirs:
+                total_tracks = sorted(
+                  [f for f in os.listdir(subdir) 
+                    if os.path.isfile(os.path.join(subdir, f))
+                    and music_extension_regex.match(f.split(delim['ext'])[-1]) \
+                      != None])[-1][:2]
+                if total_tracks[1] == '.':
+                    total_tracks = sorted(
+                      [f for f in os.listdir(subdir) 
+                        if os.path.isfile(os.path.join(subdir, f))
+                        and music_extension_regex.match(
+                          f.split(delim['ext'])[-1]
+                        ) \
+                          != None])[-1][2:4]
+                    
+                for f in files:
+                    print msg['update_file'], f
+                    extension = f.split(delim['ext'])[-1]
+                    if music_extension_regex.match(extension) == None:
+                        continue
+                    track_number = f.split(delim['parts'])[0]
+                    track_title  = \
+                      f.split(delim['parts'])[2].rsplit(delim['ext'], 1)[0]
+
+                    if cd_regex.match(subdir.split(delim['dir_path'])[-1] \
+                      .split(delim['parts'])[-1]) == None:
+                        artist_name  = \
+                          subdir.split(delim['dir_path'])[-1] \
+                            .split(delim['parts'])[0]
+                        album_title  = \
+                          subdir.split(delim['dir_path'])[-1] \
+                            .split(delim['parts'])[-1]
+                        year  = \
+                          subdir.split(delim['dir_path'])[-1] \
+                            .split(delim['parts'])[-2]
+                        disc_number = 1
+                        total_discs = 1
+                    else:
+                        artist_name  = \
+                          subdir.split(delim['dir_path'])[-2] \
+                            .split(delim['parts'])[0]
+                        album_title  = \
+                          subdir.split(delim['dir_path'])[-2] \
+                            .split(delim['parts'])[-1]
+                        year  = \
+                          subdir.split(delim['dir_path'])[-2] \
+                            .split(delim['parts'])[-2]
+                        disc_number = subdir.split(delim['dir_path'])[-1][-1]
+
+                    if extension == 'mp3':
+                        id3 = MP3(os.path.join(subdir, f), ID3=EasyID3)
+                        id3['tracknumber'] = \
+                          str(track_number) + '/' + str(total_tracks)
+                        id3['discnumber'] = \
+                          str(disc_number) + '/' + str(total_discs)
+                    elif extension == 'flac':
+                        id3 = FLAC(os.path.join(subdir, f))
+                        id3['tracknumber'] = str(track_number)
+                        id3['tracktotal'] = str(total_tracks)
+                        id3['discnumber'] = str(disc_number)
+                        id3['disctotal'] = str(total_discs)
+                    id3['artist'] = artist_name
+                    id3['title'] = track_title
+                    id3['album'] = album_title
+                    id3['date'] = year
+                    id3.save()
+            else:
+                total_discs = sorted(
+                  [f for f in os.listdir(subdir)
+                    if os.path.isdir(os.path.join(subdir, f))])[-1][2]
 
 
 def check_capitalization(string, message, va = False):
@@ -265,5 +377,10 @@ def check_file_naming(file_name, dir_name):
     return None
 
 if __name__ == "__main__":
-    check_naming(sys.argv[1])
+    if sys.argv[2] == '1':
+        check_naming(sys.argv[1])
+    if sys.argv[3] == '1':
+        delete_id3(sys.argv[1])
+    if sys.argv[4] == '1':
+        update_id3(sys.argv[1])
 
