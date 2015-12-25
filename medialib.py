@@ -165,7 +165,7 @@ def update_id3(directory):
             if subdir.find('Multimedia') is not -1: # skipping Multimedia dirs
                 continue
             print msg['update_dir'], subdir
-            if not dirs:
+            if dirs == ['Multimedia'] or not dirs:
                 total_tracks = sorted(
                   [f for f in os.listdir(subdir) 
                     if os.path.isfile(os.path.join(subdir, f))
